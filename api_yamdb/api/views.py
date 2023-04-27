@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import AccessToken
 from api.filters import TitleFilter
 from .mixins import ModelMixinSet
-from .models import Category, Genre, Title, User
+from .models import Category, Genre, Title, User, Review
 from .permissions import IsAdminUserOrReadOnly
 from .utils import create_conf_code
 from .serializers import (CategorySerializer, GenreSerializer, 
@@ -49,6 +49,40 @@ class TitleViewSet(ModelMixinSet):
             return TitleReadSerializer
 
         return TitleWriteSerializer
+
+
+
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    def get_queryset(self):
+        title = get_object_or_404(
+            Title,
+            id=self.kwargs.get('title_id'))
+        return title.reviews.all()
+
+    def perform_create(self, serializer):
+        title = get_object_or_404(
+            Title,
+            id=self.kwargs.get('title_id'))
+        serializer.save(author=self.request.user, title=title)
+
+
+class CommentsViewSet(viewsets.ModelViewSet):
+    def get_queryset(self):
+        review = get_object_or_404(
+            Review,
+            id=self.kwargs.get('review_id'),
+            title__id=self.kwargs.get('title_id')
+        )
+        return review.comments.all()
+
+    def perform_create(self, serializer):
+        review = get_object_or_404(
+            Review,
+            id=self.kwargs.get('review_id'),
+            title__id=self.kwargs.get('title_id')
+        )
+        serializer.save(author=self.request.user, review=review)
 
 
 

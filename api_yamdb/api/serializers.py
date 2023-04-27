@@ -1,8 +1,9 @@
+from django.conf import settings
 from rest_framework.validators import UniqueValidator
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import Category, Genre, Title, User
+from .models import Category, Genre, Title, User, Review, Comments
 
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -45,6 +46,45 @@ class TitleWriteSerializer(serializers.ModelSerializer):
 
 
 
+class ReviewSerializer(serializers.ModelSerializer):
+    author = serializers.SlugRelatedField(
+        slug_field='username',
+        read_only=True
+    )
+    title = serializers.SlugRelatedField(
+        slug_field='name',
+        read_only=True
+    )
+
+    def validate_score(self, value):
+        if settings.MIN_SCORE > value > settings.MAX_SCORE:
+            raise serializers.ValidationError(
+                (f'Оценка должна быть от {settings.MIN_SCORE}'
+                 f'до {settings.MAX_SCORE}!')
+            )
+        return value
+
+    class Meta:
+        model = Review
+        fields = ('id', 'author', 'title', 'text', 'score', 'pub_date')
+
+
+class CommentsSerializer(serializers.ModelSerializer):
+    author = serializers.SlugRelatedField(
+        read_only=True,
+        slug_field='username',
+        default=serializers.CurrentUserDefault()
+    )
+    review = serializers.SlugRelatedField(
+        slug_field='text',
+        read_only=True
+    )
+
+    class Meta:
+        model = Comments
+        fields = ('id', 'author', 'review', 'text', 'pub_date')
+        
+        
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
