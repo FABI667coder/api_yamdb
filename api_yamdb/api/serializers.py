@@ -1,9 +1,8 @@
 from django.conf import settings
 from rest_framework.validators import UniqueValidator
-from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import Category, Genre, Title, User, Review, Comments
+from reviews.models import Category, Genre, Title, User, Review, Comments
 
 
 class GenreSerializer(serializers.ModelSerializer):

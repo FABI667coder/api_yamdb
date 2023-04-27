@@ -9,8 +9,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import AccessToken
 from api.filters import TitleFilter
 from .mixins import ModelMixinSet
-from .models import Category, Genre, Title, User, Review
-from .permissions import IsAdminUserOrReadOnly
+from reviews.models import Category, Genre, Title, User, Review
 from .utils import create_conf_code
 from .serializers import (CategorySerializer, GenreSerializer, 
                           TitleReadSerializer, TitleWriteSerializer,
@@ -20,7 +19,7 @@ from .serializers import (CategorySerializer, GenreSerializer,
 
 
 class GenreViewSet(ModelMixinSet):
-    permission_classes = [IsAdminUserOrReadOnly, ]
+    permission_classes = [IsAdminUser, ]
     queryset = Genre.objects.all()
     serializer_class = GenreSerializer
     filter_backends = [filters.SearchFilter]
@@ -29,7 +28,7 @@ class GenreViewSet(ModelMixinSet):
 
 
 class CategoryViewSet(ModelMixinSet):
-    permission_classes = [IsAdminUserOrReadOnly, ]
+    permission_classes = [IsAdminUser, ]
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     filter_backends = [filters.SearchFilter]
@@ -38,10 +37,10 @@ class CategoryViewSet(ModelMixinSet):
 
 
 class TitleViewSet(ModelMixinSet):
-    permission_classes = [IsAdminUserOrReadOnly, ]
-    # queryset = Title.objects.all().annotate(Avg('reviews__score'))
+    permission_classes = [IsAdminUser, ]
+    queryset = Title.objects.all().annotate(Avg('reviews__score'))
     filter_backends = [DjangoFilterBackend]
-    filterset_class = TitleFilter
+    filter_set_class = TitleFilter
     lookup_field = 'slug'
 
     def get_serializer_class(self):
@@ -49,8 +48,6 @@ class TitleViewSet(ModelMixinSet):
             return TitleReadSerializer
 
         return TitleWriteSerializer
-
-
 
 
 class ReviewViewSet(viewsets.ModelViewSet):
@@ -83,7 +80,6 @@ class CommentsViewSet(viewsets.ModelViewSet):
             title__id=self.kwargs.get('title_id')
         )
         serializer.save(author=self.request.user, review=review)
-
 
 
 class APISignUp(views.APIView):

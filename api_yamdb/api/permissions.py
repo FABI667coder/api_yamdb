@@ -10,3 +10,4 @@ class IsAuthorAndModeratorOrReadOnly(BasePermission):
         return (obj.author == request.user or request.user.is_moderator
                 or request.method in SAFE_METHODS
                 )
+
