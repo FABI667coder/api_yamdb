@@ -1,15 +1,55 @@
 from django.conf import settings
 from django.core.mail import send_mail
+from django.db.models import Avg
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, views, viewsets
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import AccessToken
-
-from reviews.models import User, Title, Review
+from api.filters import TitleFilter
+from .mixins import ModelMixinSet
+from .models import Category, Genre, Title, User, Review
+from .permissions import IsAdminUserOrReadOnly
 from .utils import create_conf_code
-from .serializers import (MyselfSerializer, SignUpSerializer, TokenSerializer,
-                          UserSerializer)
+from .serializers import (CategorySerializer, GenreSerializer, 
+                          TitleReadSerializer, TitleWriteSerializer,
+                          MyselfSerializer, SignUpSerializer, TokenSerializer,
+                          UserSerializer
+                        )
+
+
+class GenreViewSet(ModelMixinSet):
+    permission_classes = [IsAdminUserOrReadOnly, ]
+    queryset = Genre.objects.all()
+    serializer_class = GenreSerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name', ]
+    lookup_field = 'slug'
+
+
+class CategoryViewSet(ModelMixinSet):
+    permission_classes = [IsAdminUserOrReadOnly, ]
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['name', ]
+    lookup_field = 'slug'
+
+
+class TitleViewSet(ModelMixinSet):
+    permission_classes = [IsAdminUserOrReadOnly, ]
+    # queryset = Title.objects.all().annotate(Avg('reviews__score'))
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = TitleFilter
+    lookup_field = 'slug'
+
+    def get_serializer_class(self):
+        if self.action in ('list', 'retrieve'):
+            return TitleReadSerializer
+
+        return TitleWriteSerializer
+
 
 
 
