@@ -3,7 +3,9 @@ import string
 
 from django.conf import settings
 from django.shortcuts import get_object_or_404
-from reviews.models import Title, User
+
+from reviews.models import Title
+
 
 def create_conf_code():
     return ''.join(

@@ -49,9 +49,6 @@ class User(AbstractUser):
         null=True
     )
 
-    # def __str__(self):
-    #     return str(self.username)
-
     def is_admin(self):
         return self.role == 'admin'
 

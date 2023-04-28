@@ -1,25 +1,26 @@
 from django.conf import settings
 from django.core.mail import send_mail
-from django.db.models import Avg
 from django.db import IntegrityError
+from django.db.models import Avg
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, status, views, viewsets, generics
-from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework import filters, generics, status, views, viewsets
+from rest_framework.permissions import (IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import AccessToken
 
 from reviews.models import Category, Genre, Review, Title, User
 from .filters import TitleFilter
 from .mixins import ModelMixinSet, TitleModelMixinSet
+from .pagination import PagePagination
+from .permissions import IsAdmin, IsAdminOrReadOnly, IsOwnerOrAdminOrModerator
 from .serializers import (CategorySerializer, CommentsSerializer,
                           GenreSerializer, MyselfSerializer, ReviewSerializer,
                           SignUpSerializer, TitleReadSerializer,
                           TitleWriteSerializer, TokenSerializer,
                           UserSerializer)
 from .utils import create_conf_code
-from .permissions import IsAdmin, IsAdminOrReadOnly, IsOwnerOrAdminOrModerator
-from .pagination import PagePagination
 
 
 class APIToken(views.APIView):
@@ -50,7 +51,7 @@ class APIToken(views.APIView):
 class UserViewSet(viewsets.ModelViewSet):
     """ViewSet для добавление/удаления пользователей администратором."""
 
-    queryset = User.objects.all()
+    queryset = User.objects.all().order_by('id')
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
     filter_backends = (filters.SearchFilter,)
@@ -97,7 +98,7 @@ class APIMyself(views.APIView):
 
 
 class GenreViewSet(ModelMixinSet):
-    queryset = Genre.objects.all()
+    queryset = Genre.objects.all().order_by('id')
     serializer_class = GenreSerializer
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [filters.SearchFilter]
@@ -107,7 +108,7 @@ class GenreViewSet(ModelMixinSet):
 
 
 class CategoryViewSet(ModelMixinSet):
-    queryset = Category.objects.all()
+    queryset = Category.objects.all().order_by('id')
     serializer_class = CategorySerializer
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [filters.SearchFilter]
@@ -117,14 +118,16 @@ class CategoryViewSet(ModelMixinSet):
 
 
 class TitleViewSet(TitleModelMixinSet):
-    queryset = Title.objects.all().annotate(Avg('reviews__score'))
+    queryset = Title.objects.annotate(
+        rating=Avg('reviews__score')
+    ).order_by('id')
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [DjangoFilterBackend]
     pagination_class = PagePagination
     filterset_class = TitleFilter
 
     def get_serializer_class(self):
-        if self.action in ('list', 'retrieve'):
+        if self.action in ['list', 'retrieve']:
             return TitleReadSerializer
         return TitleWriteSerializer
 
@@ -138,16 +141,17 @@ class ReviewViewSet(viewsets.ModelViewSet):
     def get_id(self):
         return get_object_or_404(
             Title,
-            pk=self.kwargs.get('title_id')
+            id=self.kwargs.get('title_id')
         )
 
     def get_queryset(self):
         return self.get_id().reviews.all()
 
     def perform_create(self, serializer):
-        return serializer.save(
+        serializer.save(
             author=self.request.user,
-            title=self.get_id())
+            title=self.get_id()
+        )
 
 
 class CommentsViewSet(viewsets.ModelViewSet):

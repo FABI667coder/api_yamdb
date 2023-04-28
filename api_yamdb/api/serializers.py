@@ -1,11 +1,8 @@
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from rest_framework import serializers
-from reviews.validators import UsernameValidator
 
 from reviews.models import Category, Comments, Genre, Review, Title, User
-
-User = get_user_model()
+from reviews.validators import UsernameValidator
 
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -25,9 +22,10 @@ class CategorySerializer(serializers.ModelSerializer):
 class TitleReadSerializer(serializers.ModelSerializer):
     genre = GenreSerializer(many=True, read_only=True)
     category = CategorySerializer(read_only=True)
+    rating = serializers.IntegerField()
 
     class Meta:
-        fields = ('id', 'name', 'year',
+        fields = ('id', 'name', 'year', 'rating',
                   'description', 'genre', 'category')
         model = Title
 
@@ -41,14 +39,15 @@ class TitleWriteSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
-        fields = ('id', 'name', 'year', 'description', 'genre', 'category')
+        fields = ('id', 'name', 'year', 'description', 'genre', 'category',)
         model = Title
 
 
 class ReviewSerializer(serializers.ModelSerializer):
     author = serializers.SlugRelatedField(
         slug_field='username',
-        read_only=True
+        read_only=True,
+        default=serializers.CurrentUserDefault()
     )
     title = serializers.SlugRelatedField(
         slug_field='name',
@@ -62,7 +61,7 @@ class ReviewSerializer(serializers.ModelSerializer):
                  f'до {settings.MAX_SCORE}!')
             )
         return value
-    
+
     def validate(self, value):
         super().validate(value)
 
@@ -75,9 +74,10 @@ class ReviewSerializer(serializers.ModelSerializer):
         )
         if Review.objects.filter(author=user, title_id=title_id).exists():
             raise serializers.ValidationError(
-                    'Нельзя оставить повторный отзыв')
+                'Нельзя оставить повторный отзыв'
+            )
         return value
-    
+
     class Meta:
         model = Review
         fields = ('id', 'author', 'title', 'text', 'score', 'pub_date')

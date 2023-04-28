@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (APIMyself, APISignUp, APIToken, CategoryViewSet,
                     CommentsViewSet, GenreViewSet, ReviewViewSet, TitleViewSet,
-                    UserViewSet, UserProfile)
+                    UserProfile, UserViewSet)
 
 router_v1 = DefaultRouter()
 router_v1.register('genres', GenreViewSet, basename='genres')
@@ -19,7 +19,6 @@ router_v1.register(
     ReviewViewSet,
     basename='reviews'
 )
-
 router_v1.register(
     r'titles/(?P<title_id>\d+)/reviews/(?P<review_id>\d+)/comments',
     CommentsViewSet,
