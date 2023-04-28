@@ -1,117 +1,25 @@
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db.models import Avg
+from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, status, views, viewsets
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework import filters, status, views, viewsets, generics
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import AccessToken
-from api.filters import TitleFilter
-from .mixins import ModelMixinSet
-from reviews.models import Category, Genre, Title, User, Review
+
+from reviews.models import Category, Genre, Review, Title, User
+from .filters import TitleFilter
+from .mixins import ModelMixinSet, TitleModelMixinSet
+from .serializers import (CategorySerializer, CommentsSerializer,
+                          GenreSerializer, MyselfSerializer, ReviewSerializer,
+                          SignUpSerializer, TitleReadSerializer,
+                          TitleWriteSerializer, TokenSerializer,
+                          UserSerializer)
 from .utils import create_conf_code
-from .serializers import (CategorySerializer, GenreSerializer, 
-                          TitleReadSerializer, TitleWriteSerializer,
-                          MyselfSerializer, SignUpSerializer, TokenSerializer,
-                          UserSerializer
-                        )
-
-
-class GenreViewSet(ModelMixinSet):
-    permission_classes = [IsAdminUser, ]
-    queryset = Genre.objects.all()
-    serializer_class = GenreSerializer
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['name', ]
-    lookup_field = 'slug'
-
-
-class CategoryViewSet(ModelMixinSet):
-    permission_classes = [IsAdminUser, ]
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['name', ]
-    lookup_field = 'slug'
-
-
-class TitleViewSet(ModelMixinSet):
-    permission_classes = [IsAdminUser, ]
-    queryset = Title.objects.all().annotate(Avg('reviews__score'))
-    filter_backends = [DjangoFilterBackend]
-    filter_set_class = TitleFilter
-    lookup_field = 'slug'
-
-    def get_serializer_class(self):
-        if self.action in ('list', 'retrieve'):
-            return TitleReadSerializer
-
-        return TitleWriteSerializer
-
-
-class ReviewViewSet(viewsets.ModelViewSet):
-    def get_queryset(self):
-        title = get_object_or_404(
-            Title,
-            id=self.kwargs.get('title_id'))
-        return title.reviews.all()
-
-    def perform_create(self, serializer):
-        title = get_object_or_404(
-            Title,
-            id=self.kwargs.get('title_id'))
-        serializer.save(author=self.request.user, title=title)
-
-
-class CommentsViewSet(viewsets.ModelViewSet):
-    def get_queryset(self):
-        review = get_object_or_404(
-            Review,
-            id=self.kwargs.get('review_id'),
-            title__id=self.kwargs.get('title_id')
-        )
-        return review.comments.all()
-
-    def perform_create(self, serializer):
-        review = get_object_or_404(
-            Review,
-            id=self.kwargs.get('review_id'),
-            title__id=self.kwargs.get('title_id')
-        )
-        serializer.save(author=self.request.user, review=review)
-
-
-class APISignUp(views.APIView):
-    """ View-класс для регистрации пользователя."""
-
-    def post(self, request):
-        serializer = SignUpSerializer(data=request.data)
-        if serializer.is_valid():
-            username = serializer.validated_data['username']
-            email = serializer.validated_data['email']
-            user = User.objects.create(
-                username=username,
-                email=email,
-            )
-            confirmation_code = create_conf_code()
-            user.confirmation_code = confirmation_code
-            user.save()
-            send_mail(
-                'Confirmation code',
-                confirmation_code,
-                settings.EMAIL_HOST_USER,
-                [email],
-                fail_silently=False,
-            )
-            return Response(
-                serializer.data,
-                status=status.HTTP_200_OK
-            )
-        return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST
-        )
+from .permissions import IsAdmin, IsAdminOrReadOnly, IsOwnerOrAdminOrModerator
+from .pagination import PagePagination
 
 
 class APIToken(views.APIView):
@@ -144,9 +52,20 @@ class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminUser]
-    filter_backends = (filters.SearchFilter, )
-    search_fields = ('username', )
+    permission_classes = [IsAdmin]
+    filter_backends = (filters.SearchFilter,)
+    filterset_fields = ('username',)
+    search_fields = ('username',)
+    lookup_field = 'username'
+    pagination_class = PagePagination
+
+
+class UserProfile(generics.RetrieveUpdateDestroyAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    lookup_field = 'username'
+    permission_classes = [IsAdmin]
+    http_method_names = ['get', 'patch', 'delete']
 
 
 class APIMyself(views.APIView):
@@ -167,6 +86,120 @@ class APIMyself(views.APIView):
         serializer = MyselfSerializer(user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK
+            )
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+class GenreViewSet(ModelMixinSet):
+    queryset = Genre.objects.all()
+    serializer_class = GenreSerializer
+    permission_classes = [IsAdminOrReadOnly]
+    filter_backends = [filters.SearchFilter]
+    pagination_class = PagePagination
+    search_fields = ['name', ]
+    lookup_field = 'slug'
+
+
+class CategoryViewSet(ModelMixinSet):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = [IsAdminOrReadOnly]
+    filter_backends = [filters.SearchFilter]
+    pagination_class = PagePagination
+    search_fields = ['name', ]
+    lookup_field = 'slug'
+
+
+class TitleViewSet(TitleModelMixinSet):
+    queryset = Title.objects.all().annotate(Avg('reviews__score'))
+    permission_classes = [IsAdminOrReadOnly]
+    filter_backends = [DjangoFilterBackend]
+    pagination_class = PagePagination
+    filterset_class = TitleFilter
+
+    def get_serializer_class(self):
+        if self.action in ('list', 'retrieve'):
+            return TitleReadSerializer
+        return TitleWriteSerializer
+
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    serializer_class = ReviewSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly,
+                          IsOwnerOrAdminOrModerator]
+
+    def get_id(self):
+        return get_object_or_404(
+            Title,
+            pk=self.kwargs.get('title_id')
+        )
+
+    def get_queryset(self):
+        return self.get_id().reviews.all()
+
+    def perform_create(self, serializer):
+        return serializer.save(
+            author=self.request.user,
+            title=self.get_id())
+
+
+class CommentsViewSet(viewsets.ModelViewSet):
+    serializer_class = CommentsSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly,
+                          IsOwnerOrAdminOrModerator]
+    pagination_class = PagePagination
+
+    def get_id(self):
+        return get_object_or_404(
+            Review,
+            pk=self.kwargs.get('review_id'),
+            title__id=self.kwargs.get('title_id')
+        )
+
+    def get_queryset(self):
+        return self.get_id().comments.all()
+
+    def perform_create(self, serializer):
+        return serializer.save(
+            author=self.request.user,
+            review=self.get_id()
+        )
+
+
+class APISignUp(views.APIView):
+    """ View-класс для регистрации пользователя."""
+
+    def post(self, request):
+        serializer = SignUpSerializer(data=request.data)
+        if serializer.is_valid():
+            username = serializer.validated_data['username']
+            email = serializer.validated_data['email']
+            try:
+                user, created = User.objects.get_or_create(
+                    username=username,
+                    email=email,
+                )
+            except IntegrityError:
+                return Response(
+                    serializer.errors,
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            confirmation_code = create_conf_code()
+            user.confirmation_code = confirmation_code
+            user.save()
+            send_mail(
+                'Confirmation code',
+                confirmation_code,
+                settings.EMAIL_HOST_USER,
+                [email],
+                fail_silently=False,
+            )
             return Response(
                 serializer.data,
                 status=status.HTTP_200_OK

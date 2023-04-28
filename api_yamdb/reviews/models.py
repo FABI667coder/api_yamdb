@@ -1,5 +1,5 @@
-from django.contrib.auth.models import AbstractUser
 from django.conf import settings
+from django.contrib.auth.models import AbstractUser
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -13,11 +13,12 @@ ROLES = (
 
 
 class User(AbstractUser):
+    username_validator = UsernameValidator()
     username = models.CharField(
         'Username',
         max_length=150,
         unique=True,
-        validators=[UsernameValidator],
+        validators=[username_validator],
     )
     email = models.EmailField(
         'Email',
@@ -60,6 +61,7 @@ class User(AbstractUser):
     def is_user(self):
         return self.role == 'user'
 
+
 class Genre(models.Model):
     name = models.CharField('Название жанра', max_length=50)
     slug = models.SlugField(
@@ -91,7 +93,7 @@ class Category(models.Model):
 
 
 class Title(models.Model):
-    name = models.CharField('Наименование', max_length=100)
+    name = models.CharField('Наименование', max_length=256)
     year = models.IntegerField()
     description = models.TextField(
         'Описание',
@@ -183,9 +185,3 @@ class Comments(models.Model):
 
     def __str__(self) -> str:
         return self.text[:settings.LENGTH_TEXT]
-
-
-
-
-
-

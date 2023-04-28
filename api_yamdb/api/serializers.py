@@ -1,12 +1,11 @@
 from django.conf import settings
-from rest_framework.validators import UniqueValidator
 from rest_framework import serializers
+from reviews.validators import UsernameValidator
 
-from reviews.models import Category, Genre, Title, User, Review, Comments
+from reviews.models import Category, Comments, Genre, Review, Title, User
 
 
 class GenreSerializer(serializers.ModelSerializer):
-
     class Meta:
         fields = ('name', 'slug',)
         lookup_field = 'slug'
@@ -14,7 +13,6 @@ class GenreSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
-
     class Meta:
         fields = ('name', 'slug',)
         lookup_field = 'slug'
@@ -26,7 +24,7 @@ class TitleReadSerializer(serializers.ModelSerializer):
     category = CategorySerializer(read_only=True)
 
     class Meta:
-        fields = ('id', 'name', 'year', 'rating',
+        fields = ('id', 'name', 'year',
                   'description', 'genre', 'category')
         model = Title
 
@@ -42,7 +40,6 @@ class TitleWriteSerializer(serializers.ModelSerializer):
     class Meta:
         fields = ('id', 'name', 'year', 'description', 'genre', 'category')
         model = Title
-
 
 
 class ReviewSerializer(serializers.ModelSerializer):
@@ -82,8 +79,8 @@ class CommentsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Comments
         fields = ('id', 'author', 'review', 'text', 'pub_date')
-        
-        
+
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -112,21 +109,15 @@ class MyselfSerializer(serializers.ModelSerializer):
 
 
 class SignUpSerializer(serializers.Serializer):
+    default_validators = UsernameValidator()
     email = serializers.EmailField(
         max_length=254,
         required=True,
-        validators=[UniqueValidator(
-            queryset=User.objects.all(),
-            message='Username already exists',
-        )]
     )
     username = serializers.CharField(
         max_length=150,
         required=True,
-        validators=[UniqueValidator(
-            queryset=User.objects.all(),
-            message='Username already exists',
-        )]
+        validators=[default_validators]
     )
 
     class Meta:
@@ -149,4 +140,3 @@ class TokenSerializer(serializers.Serializer):
 
     class Meta:
         fields = ('username', 'confirmation_code',)
-
