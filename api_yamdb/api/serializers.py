@@ -1,8 +1,11 @@
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from reviews.validators import UsernameValidator
 
 from reviews.models import Category, Comments, Genre, Review, Title, User
+
+User = get_user_model()
 
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -59,7 +62,22 @@ class ReviewSerializer(serializers.ModelSerializer):
                  f'до {settings.MAX_SCORE}!')
             )
         return value
+    
+    def validate(self, value):
+        super().validate(value)
 
+        if self.context['request'].method != 'POST':
+            return value
+
+        user = self.context['request'].user
+        title_id = (
+            self.context['request'].parser_context['kwargs']['title_id']
+        )
+        if Review.objects.filter(author=user, title_id=title_id).exists():
+            raise serializers.ValidationError(
+                    'Нельзя оставить повторный отзыв')
+        return value
+    
     class Meta:
         model = Review
         fields = ('id', 'author', 'title', 'text', 'score', 'pub_date')

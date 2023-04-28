@@ -131,6 +131,7 @@ class TitleViewSet(TitleModelMixinSet):
 
 class ReviewViewSet(viewsets.ModelViewSet):
     serializer_class = ReviewSerializer
+    pagination_class = PagePagination
     permission_classes = [IsAuthenticatedOrReadOnly,
                           IsOwnerOrAdminOrModerator]
 
