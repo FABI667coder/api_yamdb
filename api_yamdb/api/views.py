@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import IntegrityError
 from django.db.models import Avg
@@ -12,7 +13,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 
 from reviews.models import Category, Genre, Review, Title, User
 from .filters import TitleFilter
-from .mixins import ModelMixinSet, TitleModelMixinSet
+from .mixins import CreateViewDeleteMixinSet
 from .pagination import PagePagination
 from .permissions import IsAdmin, IsAdminOrReadOnly, IsOwnerOrAdminOrModerator
 from .serializers import (CategorySerializer, CommentsSerializer,
@@ -20,7 +21,6 @@ from .serializers import (CategorySerializer, CommentsSerializer,
                           SignUpSerializer, TitleReadSerializer,
                           TitleWriteSerializer, TokenSerializer,
                           UserSerializer)
-from .utils import create_conf_code
 
 
 class APIToken(views.APIView):
@@ -28,22 +28,17 @@ class APIToken(views.APIView):
 
     def post(self, request):
         serializer = TokenSerializer(data=request.data)
-        if serializer.is_valid():
-            username = serializer.validated_data['username']
-            confirmation_code = serializer.validated_data['confirmation_code']
-            user = get_object_or_404(User, username=username)
-            if confirmation_code == user.confirmation_code:
-                token = str(AccessToken.for_user(user))
-                return Response(
-                    {'token': token},
-                    status=status.HTTP_201_CREATED
-                )
+        serializer.is_valid(raise_exception=True)
+        username = serializer.validated_data['username']
+        confirmation_code = serializer.validated_data['confirmation_code']
+        user = get_object_or_404(User, username=username)
+        if confirmation_code == user.confirmation_code:
+            token = str(AccessToken.for_user(user))
             return Response(
-                serializer.errors,
-                status=status.HTTP_400_BAD_REQUEST
+                {'token': token},
+                status=status.HTTP_201_CREATED
             )
         return Response(
-            serializer.errors,
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -77,27 +72,30 @@ class APIMyself(views.APIView):
 
     permission_classes = [IsAuthenticated]
 
+    def get_user(self, request):
+        return self.request.user
+
     def get(self, request):
-        user = get_object_or_404(User, username=self.request.user)
-        serializer = MyselfSerializer(user)
+        serializer = MyselfSerializer(
+            self.get_user(request)
+        )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request):
-        user = get_object_or_404(User, username=self.request.user)
-        serializer = MyselfSerializer(user, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(
-                serializer.data,
-                status=status.HTTP_200_OK
-            )
+        serializer = MyselfSerializer(
+            self.get_user(request),
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST
+            serializer.data,
+            status=status.HTTP_200_OK
         )
 
 
-class GenreViewSet(ModelMixinSet):
+class GenreViewSet(CreateViewDeleteMixinSet):
     queryset = Genre.objects.all().order_by('id')
     serializer_class = GenreSerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -107,7 +105,7 @@ class GenreViewSet(ModelMixinSet):
     lookup_field = 'slug'
 
 
-class CategoryViewSet(ModelMixinSet):
+class CategoryViewSet(CreateViewDeleteMixinSet):
     queryset = Category.objects.all().order_by('id')
     serializer_class = CategorySerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -117,7 +115,7 @@ class CategoryViewSet(ModelMixinSet):
     lookup_field = 'slug'
 
 
-class TitleViewSet(TitleModelMixinSet):
+class TitleViewSet(viewsets.ModelViewSet):
     queryset = Title.objects.annotate(
         rating=Avg('reviews__score')
     ).order_by('id')
@@ -138,19 +136,19 @@ class ReviewViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticatedOrReadOnly,
                           IsOwnerOrAdminOrModerator]
 
-    def get_id(self):
+    def get_title(self):
         return get_object_or_404(
             Title,
             id=self.kwargs.get('title_id')
         )
 
     def get_queryset(self):
-        return self.get_id().reviews.all()
+        return self.get_title().reviews.all()
 
     def perform_create(self, serializer):
         serializer.save(
             author=self.request.user,
-            title=self.get_id()
+            title=self.get_title()
         )
 
 
@@ -160,7 +158,7 @@ class CommentsViewSet(viewsets.ModelViewSet):
                           IsOwnerOrAdminOrModerator]
     pagination_class = PagePagination
 
-    def get_id(self):
+    def get_review(self):
         return get_object_or_404(
             Review,
             pk=self.kwargs.get('review_id'),
@@ -168,12 +166,12 @@ class CommentsViewSet(viewsets.ModelViewSet):
         )
 
     def get_queryset(self):
-        return self.get_id().comments.all()
+        return self.get_review().comments.all()
 
     def perform_create(self, serializer):
         return serializer.save(
             author=self.request.user,
-            review=self.get_id()
+            review=self.get_review()
         )
 
 
@@ -182,34 +180,29 @@ class APISignUp(views.APIView):
 
     def post(self, request):
         serializer = SignUpSerializer(data=request.data)
-        if serializer.is_valid():
-            username = serializer.validated_data['username']
-            email = serializer.validated_data['email']
-            try:
-                user, created = User.objects.get_or_create(
-                    username=username,
-                    email=email,
-                )
-            except IntegrityError:
-                return Response(
-                    serializer.errors,
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            confirmation_code = create_conf_code()
-            user.confirmation_code = confirmation_code
-            user.save()
-            send_mail(
-                'Confirmation code',
-                confirmation_code,
-                settings.EMAIL_HOST_USER,
-                [email],
-                fail_silently=False,
+        serializer.is_valid(raise_exception=True)
+        username = serializer.validated_data['username']
+        email = serializer.validated_data['email']
+        try:
+            user, created = User.objects.get_or_create(
+                username=username,
+                email=email,
             )
+        except IntegrityError:
             return Response(
-                serializer.data,
-                status=status.HTTP_200_OK
+                status=status.HTTP_400_BAD_REQUEST
             )
+        confirmation_code = default_token_generator.make_token(user)
+        user.confirmation_code = confirmation_code
+        user.save()
+        send_mail(
+            'Confirmation code',
+            confirmation_code,
+            settings.EMAIL_HOST_USER,
+            [email],
+            fail_silently=False,
+        )
         return Response(
-            serializer.errors,
-            status=status.HTTP_400_BAD_REQUEST
+            serializer.data,
+            status=status.HTTP_200_OK
         )

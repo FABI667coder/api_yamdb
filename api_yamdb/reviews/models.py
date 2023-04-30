@@ -3,22 +3,25 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
-from .validators import UsernameValidator
+from .validators import UsernameValidator, validate_year
 
-ROLES = (
-    ('admin', 'admin'),
-    ('moderator', 'moderator'),
-    ('user', 'user'),
-)
+ADMIN = 'admin'
+MODERATOR = 'moderator'
+USER = 'user'
+
+ROLES_CHOICES = [
+    (ADMIN, 'admin'),
+    (MODERATOR, 'moderator'),
+    (USER, 'user'),
+]
 
 
 class User(AbstractUser):
-    username_validator = UsernameValidator()
     username = models.CharField(
         'Username',
         max_length=150,
         unique=True,
-        validators=[username_validator],
+        validators=[UsernameValidator()],
     )
     email = models.EmailField(
         'Email',
@@ -39,24 +42,31 @@ class User(AbstractUser):
     )
     role = models.CharField(
         max_length=10,
-        choices=ROLES,
-        default='user'
+        choices=ROLES_CHOICES,
+        default=USER
     )
 
     confirmation_code = models.CharField(
         'Код подтверждения',
         max_length=100,
+        blank=True,
         null=True
     )
 
+    @property
     def is_admin(self):
-        return self.role == 'admin'
+        return (self.role == ADMIN
+                or self.is_staff
+                or self.is_superuser
+                )
 
+    @property
     def is_moderator(self):
-        return self.role == 'moderator'
+        return self.role == MODERATOR
 
+    @property
     def is_user(self):
-        return self.role == 'user'
+        return self.role == USER
 
 
 class Genre(models.Model):
@@ -71,7 +81,7 @@ class Genre(models.Model):
         verbose_name_plural = 'Жанры'
 
     def __str__(self):
-        return f'{self.name} {self.name}'
+        return f'{self.name}'
 
 
 class Category(models.Model):
@@ -86,12 +96,14 @@ class Category(models.Model):
         verbose_name_plural = 'Категории'
 
     def __str__(self):
-        return f'{self.name} {self.name}'
+        return f'{self.name}'
 
 
 class Title(models.Model):
     name = models.CharField('Наименование', max_length=256)
-    year = models.IntegerField()
+    year = models.PositiveIntegerField(
+        validators=[validate_year]
+    )
     description = models.TextField(
         'Описание',
         max_length=300,
@@ -133,7 +145,7 @@ class Review(models.Model):
     text = models.TextField(
         verbose_name='Текст отзыва',
     )
-    score = models.IntegerField(
+    score = models.PositiveIntegerField(
         validators=(
             MinValueValidator(settings.MIN_SCORE),
             MaxValueValidator(settings.MAX_SCORE),
