@@ -32,7 +32,7 @@ class APIToken(views.APIView):
         username = serializer.validated_data['username']
         confirmation_code = serializer.validated_data['confirmation_code']
         user = get_object_or_404(User, username=username)
-        if confirmation_code == user.confirmation_code:
+        if default_token_generator.check_token(user, confirmation_code):
             token = str(AccessToken.for_user(user))
             return Response(
                 {'token': token},
