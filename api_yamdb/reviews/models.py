@@ -101,7 +101,7 @@ class Category(models.Model):
 
 class Title(models.Model):
     name = models.CharField('Наименование', max_length=256)
-    year = models.PositiveSmallIntegerField(
+    year = models.PositiveIntegerField(
         validators=[validate_year]
     )
     description = models.TextField(
@@ -145,7 +145,7 @@ class Review(models.Model):
     text = models.TextField(
         verbose_name='Текст отзыва',
     )
-    score = models.PositiveIntegerField(
+    score = models.PositiveSmallIntegerField(
         validators=(
             MinValueValidator(settings.MIN_SCORE),
             MaxValueValidator(settings.MAX_SCORE),
