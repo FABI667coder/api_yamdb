@@ -39,6 +39,7 @@ class APIToken(views.APIView):
                 status=status.HTTP_201_CREATED
             )
         return Response(
+            {'message': 'Error. Invalid confirmation code '},
             status=status.HTTP_400_BAD_REQUEST
         )
 
@@ -72,18 +73,15 @@ class APIMyself(views.APIView):
 
     permission_classes = [IsAuthenticated]
 
-    def get_user(self, request):
-        return self.request.user
-
     def get(self, request):
         serializer = MyselfSerializer(
-            self.get_user(request)
+            self.request.user
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def patch(self, request):
         serializer = MyselfSerializer(
-            self.get_user(request),
+            self.request.user,
             data=request.data,
             partial=True
         )
@@ -190,6 +188,7 @@ class APISignUp(views.APIView):
             )
         except IntegrityError:
             return Response(
+                {'message': 'IntegrityError'},
                 status=status.HTTP_400_BAD_REQUEST
             )
         confirmation_code = default_token_generator.make_token(user)
