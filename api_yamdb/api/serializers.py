@@ -127,7 +127,6 @@ class MyselfSerializer(serializers.ModelSerializer):
 
 
 class SignUpSerializer(serializers.Serializer):
-    default_validators = UsernameValidator()
     email = serializers.EmailField(
         max_length=254,
         required=True,
@@ -135,16 +134,11 @@ class SignUpSerializer(serializers.Serializer):
     username = serializers.CharField(
         max_length=150,
         required=True,
-        validators=[default_validators]
+        validators=[UsernameValidator()]
     )
 
     class Meta:
         fields = ('email', 'username',)
-
-    def validate(self, data):
-        if data['username'] == 'me':
-            raise serializers.ValidationError("U can't use username 'me'")
-        return data
 
 
 class TokenSerializer(serializers.Serializer):
