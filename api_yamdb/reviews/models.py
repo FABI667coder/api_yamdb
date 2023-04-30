@@ -81,7 +81,7 @@ class Genre(models.Model):
         verbose_name_plural = 'Жанры'
 
     def __str__(self):
-        return f'{self.name}'
+        return self.name
 
 
 class Category(models.Model):
@@ -96,12 +96,12 @@ class Category(models.Model):
         verbose_name_plural = 'Категории'
 
     def __str__(self):
-        return f'{self.name}'
+        return self.name
 
 
 class Title(models.Model):
     name = models.CharField('Наименование', max_length=256)
-    year = models.PositiveIntegerField(
+    year = models.PositiveSmallIntegerField(
         validators=[validate_year]
     )
     description = models.TextField(
